@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="th" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โซลูชันการจัดการข้อมูลระดับองค์กร</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Corporate Blue & Slate -->
+    <!-- Application Structure Plan: A thematic, user-journey-oriented SPA. The structure starts with a high-level introduction, followed by four interactive sections explaining the core user requirements (Access Control, Entity Description, KM, Rollout). This educates the user on the concepts first. The main section is an interactive product showcase where users can view a comparison table of leading solutions (Purview, Collibra, Atlan, etc.) based on these four capabilities. Clicking a product row reveals a detailed modal view comparing its features. This structure guides the user from understanding their needs to finding the right solution, making it highly usable. -->
+    <!-- Visualization & Content Choices: 
+        - Access Control: Report Info -> Comparison of MAC, RBAC, ABAC, etc. Goal -> Compare. Viz -> Rating Table. Interaction -> Click row to see details. Justification -> Provides a clear, direct comparison of features across models. Library -> HTML/CSS/JS.
+        - Entity Description: Report Info -> Key features of data catalogs. Goal -> Inform/Organize. Viz -> Interactive HTML/CSS grid of feature cards. Interaction -> Hover/click for more info. Justification -> Breaks down a complex concept into digestible parts. Library -> HTML/CSS.
+        - Knowledge Management: Report Info -> Role of glossaries, stewards, collaboration. Goal -> Explain a process. Viz -> HTML/CSS process flow diagram. Interaction -> Static visual. Justification -> Clearly shows the bridge between technical data and business context. Library -> HTML/CSS.
+        - Data Rollout (MDM): Report Info -> Role of MDM as a single source of truth. Goal -> Inform. Viz -> Centralized hub-and-spoke diagram using HTML/CSS. Justification -> Visually represents the concept of data consolidation. Library -> HTML/CSS.
+        - Product Showcase: Report Info -> Product capabilities from report tables. Goal -> Compare/Select. Viz -> Comparison Table with Product Logos. Interaction -> Clicking a table row opens a modal with detailed capability analysis. Justification -> Provides a clear, direct comparison of features across products with enhanced visual recognition. Library -> Vanilla JS for table rendering and modals.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f8f9fa;
+            color: #343a40;
+        }
+        .nav-link {
+            transition: color 0.3s, border-bottom-color 0.3s;
+            color: #495057;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #0056b3;
+            border-bottom-color: #0056b3;
+        }
+        .card {
+            background-color: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 45vh;
+        }
+        .modal {
+            transition: opacity 0.25s ease;
+        }
+        .modal-content {
+            transition: transform 0.25s ease;
+        }
+        /* Custom table styling for responsiveness and aesthetics */
+        .comparison-table-container {
+            overflow-x: auto; /* Allows horizontal scrolling on small screens */
+            -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+            border-radius: 0.75rem; /* Matches card border-radius */
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+        }
+        .comparison-table {
+            min-width: 768px; /* Ensures table doesn't shrink too much on mobile, forcing scroll */
+            border-collapse: collapse;
+        }
+        .comparison-table th, .comparison-table td {
+            padding: 1rem 1.5rem; /* Consistent padding */
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0; /* Light gray border */
+        }
+        .comparison-table th {
+            background-color: #e9ecef; /* Light gray header background */
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            font-size: 0.875rem; /* sm text size */
+            letter-spacing: 0.05em;
+        }
+        .comparison-table tbody tr:last-child td {
+            border-bottom: none; /* No border on the last row */
+        }
+        .comparison-table tbody tr:hover {
+            background-color: #f0f8ff; /* Alice Blue on hover */
+        }
+        .product-logo {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white/90 backdrop-blur-sm sticky top-0 z-40 border-b border-gray-200">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-xl md:text-2xl font-bold text-gray-800">โซลูชันการจัดการข้อมูล</h1>
+            <div class="hidden md:flex space-x-8">
+                <a href="#capabilities" class="nav-link border-b-2 border-transparent pb-1">ความสามารถหลัก</a>
+                <a href="#products" class="nav-link border-b-2 border-transparent pb-1">เปรียบเทียบผลิตภัณฑ์</a>
+                <a href="#strategy" class="nav-link border-b-2 border-transparent pb-1">ข้อแนะนำเชิงกลยุทธ์</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+
+        <section id="intro" class="text-center mb-20">
+            <h2 class="text-3xl md:text-5xl font-bold text-gray-800 mb-4">ค้นหาโซลูชันที่ใช่สำหรับการจัดการข้อมูลองค์กร</h2>
+            <p class="text-lg md:text-xl max-w-3xl mx-auto text-gray-600">
+                สำรวจและเปรียบเทียบผลิตภัณฑ์ชั้นนำตามความสามารถหลัก 4 ด้าน: การควบคุมการเข้าถึง, บริการข้อมูล, การจัดการความรู้ และการนำข้อมูลมาใช้งาน
+            </p>
+        </section>
+
+        <section id="capabilities" class="mb-20">
+            <div class="text-center mb-12">
+                <h3 class="text-3xl font-bold text-gray-800">ความสามารถหลัก 4 ประการ</h3>
+                <p class="text-lg text-gray-600 mt-2">ทำความเข้าใจองค์ประกอบสำคัญก่อนเลือกโซลูชัน</p>
+            </div>
+            
+            <div class="space-y-16">
+                <!-- 1. Access Control -->
+                <div class="card p-6 md:p-8">
+                    <h4 class="text-2xl font-semibold mb-4 text-gray-800">1. การกำหนดสิทธิ์การเข้าถึง (Access Control)</h4>
+                    <p class="text-gray-600 mb-6 max-w-4xl">คือระบบที่จัดการและบังคับใช้ว่าใครสามารถดูหรือแก้ไขข้อมูลใดได้บ้าง การเลือกโมเดลที่เหมาะสมเป็นสิ่งสำคัญยิ่งในการสร้างสมดุลระหว่างความปลอดภัยที่รัดกุมและความยืดหยุ่นในการใช้งาน</p>
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+                        <div class="lg:col-span-3 comparison-table-container bg-white rounded-lg">
+                            <table class="comparison-table w-full table-auto" id="access-control-rating-table">
+                                <thead>
+                                    <tr>
+                                        <th>รูปแบบการควบคุมการเข้าถึง</th>
+                                        <th>ความปลอดภัย</th>
+                                        <th>ความยืดหยุ่น</th>
+                                        <th>ความซับซ้อนในการจัดการ</th>
+                                        <th>ความง่ายในการใช้งาน</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="access-control-table-body">
+                                    <!-- Rows will be injected here by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="accessControlDetails" class="lg:col-span-2 p-4 bg-gray-50 rounded-lg min-h-[200px]">
+                            <h5 class="font-semibold text-lg mb-2 text-gray-700">คลิกที่ตารางเพื่อดูรายละเอียด</h5>
+                            <p class="text-sm text-gray-500">สำรวจแต่ละโมเดลการควบคุมการเข้าถึงเพื่อทำความเข้าใจคุณสมบัติหลัก</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Entity Description -->
+                <div class="card p-6 md:p-8">
+                    <h4 class="text-2xl font-semibold mb-4 text-gray-800">2. บริการข้อมูลที่อธิบายเอนทิตี (Entity Description)</h4>
+                    <p class="text-gray-600 mb-6 max-w-4xl">คือความสามารถในการให้คำอธิบายที่ชัดเจนและบริบทที่สมบูรณ์เกี่ยวกับข้อมูล โดยมี **แค็ตตาล็อกข้อมูล (Data Catalog)** เป็นหัวใจสำคัญ ทำหน้าที่เป็น "แหล่งความจริงแหล่งเดียว" ที่รวมศูนย์เมทาดาตาและช่วยให้ทุกคนเข้าใจข้อมูลตรงกัน</p>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+                        <div class="p-4 bg-blue-50 rounded-lg"><span class="font-semibold">🔍 การค้นหาอัตโนมัติ</span><p class="text-sm text-gray-500">ดึงเมทาดาตาอัตโนมัติ</p></div>
+                        <div class="p-4 bg-blue-50 rounded-lg"><span class="font-semibold">🔗 สายข้อมูล (Lineage)</span><p class="text-sm text-gray-500">ติดตามที่มาและการเปลี่ยนแปลง</p></div>
+                        <div class="p-4 bg-blue-50 rounded-lg"><span class="font-semibold">🏷️ การจำแนกข้อมูล</span><p class="text-sm text-gray-500">จัดหมวดหมู่ข้อมูล PII</p></div>
+                        <div class="p-4 bg-blue-50 rounded-lg"><span class="font-semibold">📊 การทำโปรไฟล์ข้อมูล</span><p class="text-sm text-gray-500">ประเมินคุณภาพข้อมูล</p></div>
+                        <div class="p-4 bg-blue-50 rounded-lg"><span class="font-semibold">📚 รายการคำศัพท์ธุรกิจ</span><p class="text-sm text-gray-500">สร้างคำนิยามร่วมกัน</p></div>
+                        <div class="p-4 bg-blue-50 rounded-lg"><span class="font-semibold">🌐 มุมมอง 360 องศา</span><p class="text-sm text-gray-500">รวมข้อมูลจากหลายโดเมน</p></div>
+                    </div>
+                </div>
+
+                <!-- 3. Knowledge Management -->
+                <div class="card p-6 md:p-8">
+                    <h4 class="text-2xl font-semibold mb-4 text-gray-800">3. การจัดการความรู้บนเอนทิตี (Knowledge Management)</h4>
+                    <p class="text-gray-600 mb-6 max-w-4xl">คือการเชื่อมโยงข้อมูลทางเทคนิคเข้ากับความเข้าใจทางธุรกิจ เพื่อให้ผู้ใช้ทุกคนสามารถนำข้อมูลไปใช้ได้อย่างถูกต้องและมั่นใจ ส่งเสริมการรู้เท่าทันข้อมูล (Data Literacy) และการทำงานร่วมกันทั่วทั้งองค์กร</p>
+                    <div class="flex flex-col md:flex-row items-center justify-around text-center space-y-4 md:space-y-0">
+                        <div class="p-4"><div class="text-3xl mb-2">📄</div><span class="font-semibold">ข้อมูลทางเทคนิค</span></div>
+                        <div class="text-2xl text-blue-500 font-bold">→</div>
+                        <div class="p-4 card bg-blue-100"><div class="text-3xl mb-2">🧠</div><span class="font-semibold">การจัดการความรู้</span><p class="text-sm text-gray-600">(รายการคำศัพท์, การทำงานร่วมกัน)</p></div>
+                        <div class="text-2xl text-blue-500 font-bold">→</div>
+                        <div class="p-4"><div class="text-3xl mb-2">💡</div><span class="font-semibold">ข้อมูลเชิงลึกทางธุรกิจ</span></div>
+                    </div>
+                </div>
+
+                <!-- 4. Data Rollout -->
+                <div class="card p-6 md:p-8">
+                    <h4 class="text-2xl font-semibold mb-4 text-gray-800">4. การนำข้อมูลที่มีอยู่มาใช้งาน (Data Rollout)</h4>
+                    <p class="text-gray-600 mb-6 max-w-4xl">คือกระบวนการนำเข้าข้อมูลเอนทิตีที่มีอยู่แล้วเข้ามาเป็นส่วนหนึ่งของระบบใหม่ โดยมี **การจัดการข้อมูลหลัก (Master Data Management - MDM)** เป็นเครื่องมือสำคัญในการรวม, ทำความสะอาด, และกำกับดูแลข้อมูลเพื่อสร้าง "บันทึกทองคำ" (Golden Record) ที่น่าเชื่อถือ</p>
+                     <div class="flex items-center justify-center p-4">
+                        <div class="text-center"><p class="font-semibold">แหล่งข้อมูล A</p><div class="text-2xl">🗃️</div></div>
+                        <div class="text-2xl mx-4 text-gray-400">↘</div>
+                        <div class="text-center"><p class="font-semibold">แหล่งข้อมูล B</p><div class="text-2xl">🗃️</div></div>
+                        <div class="text-2xl mt-8 mx-4 text-gray-400">→</div>
+                        <div class="text-center p-6 bg-green-100 rounded-full border-2 border-green-300">
+                            <p class="font-bold text-lg text-green-800">MDM</p>
+                            <p class="text-sm text-green-700">แหล่งความจริงเดียว</p>
+                            <div class="text-3xl mt-1">🏆</div>
+                        </div>
+                        <div class="text-2xl mt-8 mx-4 text-gray-400">→</div>
+                        <div class="text-center"><p class="font-semibold">ระบบวิเคราะห์</p><div class="text-2xl">📈</div></div>
+                        <div class="text-2xl mx-4 text-gray-400">↗</div>
+                        <div class="text-center"><p class="font-semibold">แอปพลิเคชัน</p><div class="text-2xl">📱</div></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="products" class="mb-20">
+            <div class="text-center mb-12">
+                <h3 class="text-3xl font-bold text-gray-800">เปรียบเทียบโซลูชันผลิตภัณฑ์</h3>
+                <p class="text-lg text-gray-600 mt-2">ภาพรวมความสามารถของผลิตภัณฑ์ชั้นนำด้านการจัดการข้อมูล</p>
+            </div>
+
+            <div class="comparison-table-container bg-white rounded-lg">
+                <table class="comparison-table w-full table-auto">
+                    <thead>
+                        <tr>
+                            <th>ผลิตภัณฑ์</th>
+                            <th>การควบคุมการเข้าถึง</th>
+                            <th>แค็ตตาล็อกข้อมูล</th>
+                            <th>การจัดการความรู้ (KM)</th>
+                            <th>MDM/การนำข้อมูลมาใช้งาน</th>
+                        </tr>
+                    </thead>
+                    <tbody id="product-table-body">
+                        <!-- Product rows will be injected here by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="strategy" class="mb-20">
+            <div class="text-center mb-12">
+                <h3 class="text-3xl font-bold text-gray-800">ข้อแนะนำเชิงกลยุทธ์</h3>
+                <p class="text-lg text-gray-600 mt-2">ปัจจัยสำคัญสู่ความสำเร็จในการนำไปใช้งาน</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
+                <div class="card p-6">
+                    <div class="text-3xl mb-3">🎯</div>
+                    <h4 class="font-semibold text-lg">เริ่มต้นจากเล็กๆ</h4>
+                    <p class="text-sm text-gray-600">กำหนดเป้าหมายที่ชัดเจนและเริ่มต้นกับโดเมนข้อมูลที่มีความพร้อม</p>
+                </div>
+                <div class="card p-6">
+                    <div class="text-3xl mb-3">👨‍💼</div>
+                    <h4 class="font-semibold text-lg">กำหนดบทบาทชัดเจน</h4>
+                    <p class="text-sm text-gray-600">ระบุผู้รับผิดชอบ เช่น Data Steward และ Data Owner</p>
+                </div>
+                <div class="card p-6">
+                    <div class="text-3xl mb-3">🎓</div>
+                    <h4 class="font-semibold text-lg">ให้ความรู้และสื่อสาร</h4>
+                    <p class="text-sm text-gray-600">สร้างวัฒนธรรมการทำงานร่วมกันและให้ความรู้แก่ผู้มีส่วนได้ส่วนเสีย</p>
+                </div>
+                <div class="card p-6">
+                    <div class="text-3xl mb-3">📈</div>
+                    <h4 class="font-semibold text-lg">วัดผลและปรับปรุง</h4>
+                    <p class="text-sm text-gray-600">ตรวจสอบประสิทธิภาพอย่างสม่ำเสมอและปรับปรุงอย่างต่อเนื่อง</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-gray-200">
+        <div class="container mx-auto px-6 py-4 text-center text-gray-600 text-sm">
+            <p>แอปพลิเคชันนี้สร้างขึ้นเพื่อสรุปและนำเสนอข้อมูลจากรายงานการวิเคราะห์โซลูชันการจัดการข้อมูลในรูปแบบที่โต้ตอบได้</p>
+        </div>
+    </footer>
+
+    <!-- Modal Structure -->
+    <div id="product-modal" class="modal fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto transform scale-95">
+            <div class="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+                <h3 id="modal-title" class="text-2xl font-bold"></h3>
+                <button id="close-modal-btn" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            </div>
+            <div id="modal-body" class="p-6">
+                <!-- Modal content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- Access Control Rating Table Data ---
+        const accessControlTableData = [
+            {
+                name: 'MAC (Mandatory Access Control)',
+                desc: 'เข้มงวดที่สุด การตัดสินใจอยู่ที่ผู้ดูแลระบบกลางเท่านั้น เหมาะสำหรับข้อมูลลับสุดยอด',
+                security: 5,
+                flexibility: 1,
+                complexity: 5,
+                easeOfUse: 1
+            },
+            {
+                name: 'RBAC (Role-Based Access Control)',
+                desc: 'ให้สิทธิ์การเข้าถึงตามตำแหน่งหรือบทบาทในองค์กร ทำให้การบริหารจัดการง่ายขึ้น',
+                security: 4,
+                flexibility: 3,
+                complexity: 2,
+                easeOfUse: 4
+            },
+            {
+                name: 'DAC (Discretionary Access Control)',
+                desc: 'ยืดหยุ่นที่สุด อนุญาตให้ผู้ใช้ที่ได้รับสิทธิ์สามารถแบ่งปันสิทธิ์กับผู้อื่นได้',
+                security: 1,
+                flexibility: 5,
+                complexity: 1,
+                easeOfUse: 5
+            },
+            {
+                name: 'RuBAC (Rule-Based Access Control)',
+                desc: 'จัดการการเข้าถึงตามกฎที่กำหนดไว้ล่วงหน้า เช่น เวลา หรือระดับภัยคุกคาม โดยไม่คำนึงถึงบทบาท',
+                security: 3,
+                flexibility: 4,
+                complexity: 4,
+                easeOfUse: 3
+            },
+            {
+                name: 'ABAC (Attribute-Based Access Control)',
+                desc: 'ให้สิทธิ์การเข้าถึงตามคุณลักษณะของพนักงาน วัตถุ หรือสภาพแวดล้อม มีความแม่นยำสูง',
+                security: 4.5,
+                flexibility: 4.5,
+                complexity: 5,
+                easeOfUse: 2
+            }
+        ];
+
+        const accessControlTableBody = document.getElementById('access-control-table-body');
+        const accessControlDetailsDiv = document.getElementById('accessControlDetails');
+
+        function renderAccessControlTable() {
+            accessControlTableBody.innerHTML = '';
+            accessControlTableData.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-200 hover:bg-blue-50 cursor-pointer';
+                row.dataset.index = index;
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap font-medium text-blue-700">${item.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-700">${item.security}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-700">${item.flexibility}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-700">${item.complexity}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-700">${item.easeOfUse}</td>
+                `;
+                accessControlTableBody.appendChild(row);
+            });
+        }
+
+        function updateAccessControlDetails(index) {
+            const data = accessControlTableData[index];
+            accessControlDetailsDiv.innerHTML = `
+                <h5 class="font-semibold text-lg mb-2 text-gray-800">${data.name}</h5>
+                <p class="text-sm text-gray-600">${data.desc}</p>
+                <div class="mt-4 text-sm text-gray-700">
+                    <p><strong>ความปลอดภัย:</strong> ${data.security} / 5</p>
+                    <p><strong>ความยืดหยุ่น:</strong> ${data.flexibility} / 5</p>
+                    <p><strong>ความซับซ้อนในการจัดการ:</strong> ${data.complexity} / 5</p>
+                    <p><strong>ความง่ายในการใช้งาน:</strong> ${data.easeOfUse} / 5</p>
+                </div>
+            `;
+        }
+
+        accessControlTableBody.addEventListener('click', (e) => {
+            const row = e.target.closest('tr');
+            if (row && row.dataset.index) {
+                const index = parseInt(row.dataset.index);
+                updateAccessControlDetails(index);
+            }
+        });
+
+        // Initial render for Access Control table
+        renderAccessControlTable();
+        if (accessControlTableData.length > 0) {
+            updateAccessControlDetails(0); // Show details for the first item by default
+        }
+
+        // --- Product Showcase & Modal ---
+        const products = [
+            {
+                id: 'purview',
+                name: 'Microsoft Purview',
+                logoUrl: 'https://placehold.co/30x30/0078D4/ffffff?text=MS',
+                desc: 'แพลตฟอร์มการกำกับดูแลข้อมูลแบบรวมศูนย์จาก Microsoft',
+                tags: ['access', 'catalog', 'km', 'mdm'],
+                capabilities: {
+                    access: 'มีแนวทางปฏิบัติในการให้สิทธิ์การเข้าถึงเชิงกลยุทธ์และสอดคล้อง',
+                    catalog: 'ใช้ "โดเมนการกำกับดูแล" และ "ข้อมูลผลิตภัณฑ์" เพื่อการค้นพบและการจัดการ',
+                    km: 'ใช้ "รายการคำศัพท์ทางธุรกิจ" เป็นหัวใจสำคัญในการเชื่อมโยงข้อมูลกับธุรกิจ',
+                    mdm: 'รองรับ MDM สำหรับเอนทิตีข้อมูลที่สำคัญ เช่น ลูกค้าและพนักงาน'
+                }
+            },
+            {
+                id: 'collibra',
+                name: 'Collibra',
+                logoUrl: 'https://placehold.co/30x30/00BFFF/ffffff?text=CL',
+                desc: 'แพลตฟอร์ม Data Intelligence Cloud ชั้นนำ',
+                tags: ['access', 'catalog', 'km'],
+                capabilities: {
+                    access: 'มีการจัดการนโยบายในตัวและความสามารถด้านความเป็นส่วนตัว พร้อมการควบคุมแบบละเอียด',
+                    catalog: 'ค้นพบและจัดหมวดหมู่ข้อมูลอัตโนมัติด้วย Machine Learning พร้อมสายข้อมูล',
+                    km: 'เสริมสร้างข้อมูลด้วยบริบททางธุรกิจและคำอธิบายที่ขับเคลื่อนด้วย AI',
+                    mdm: 'มุ่งเน้นที่ Data Intelligence ซึ่งโดยนัยแล้วรวมความสามารถในการจัดการข้อมูล'
+                }
+            },
+            {
+                id: 'atlan',
+                name: 'Atlan',
+                logoUrl: 'https://placehold.co/30x30/32CD32/ffffff?text=AT',
+                desc: 'แค็ตตาล็อกข้อมูลสมัยใหม่ที่เน้นมนุษย์เป็นศูนย์กลางและการกำกับดูแลเชิงรุก',
+                tags: ['access', 'catalog', 'km'],
+                capabilities: {
+                    access: 'มีการควบคุมการเข้าถึงตามบทบาทและ Policy Manager ที่ได้รับความช่วยเหลือจาก AI',
+                    catalog: 'แค็ตตาล็อกข้อมูลที่ครอบคลุมพร้อมเมทาดาตาเชิงรุกและการค้นหาด้วยภาษาธรรมชาติ',
+                    km: 'มี "รายการคำศัพท์ทางธุรกิจ" ที่สร้างบนกราฟความรู้และเวิร์กโฟลว์การทำงานร่วมกัน',
+                    mdm: 'มีตัวเชื่อมต่อที่หลากหลาย แต่เน้นที่การเป็นแค็ตตาล็อกข้อมูลเป็นหลัก'
+                }
+            },
+            {
+                id: 'informatica',
+                name: 'Informatica IDMC',
+                logoUrl: 'https://placehold.co/30x30/FF4500/ffffff?text=IN',
+                desc: 'แพลตฟอร์มการจัดการข้อมูลอัจฉริยะที่ขับเคลื่อนด้วย AI',
+                tags: ['access', 'catalog', 'km', 'mdm'],
+                capabilities: {
+                    access: 'โซลูชัน "การกำกับดูแล, การเข้าถึง & ความเป็นส่วนตัว" สำหรับการเข้าถึงตามนโยบาย',
+                    catalog: 'ทำให้การค้นพบ, การดูแลจัดการ, และสายข้อมูลเป็นไปโดยอัตโนมัติด้วย AI',
+                    km: 'มีคุณสมบัติการทำงานร่วมกัน เช่น การให้คะแนน, รีวิว, และ Q&A',
+                    mdm: 'นำเสนอ "แอปพลิเคชัน MDM & 360" หลายโดเมนที่แข็งแกร่ง'
+                }
+            },
+            {
+                id: 'sap_mdg',
+                name: 'SAP Master Data Governance',
+                logoUrl: 'https://placehold.co/30x30/008000/ffffff?text=SAP',
+                desc: 'โซลูชันเฉพาะทางสำหรับ MDM ที่บูรณาการกับระบบนิเวศของ SAP',
+                tags: ['access', 'mdm', 'km'],
+                capabilities: {
+                    access: 'ให้การควบคุมการเข้าถึงตามบทบาทที่ปลอดภัย',
+                    catalog: 'เน้นการรวมข้อมูลเพื่อสร้างมุมมองเดียว ไม่ใช่แค็ตตาล็อกข้อมูลแบบสแตนด์อโลน',
+                    km: 'กำกับดูแลข้อมูลแบบรวมศูนย์และมีเวิร์กโฟลว์การทำงานร่วมกัน',
+                    mdm: 'ความสามารถ MDM หลักที่แข็งแกร่งสำหรับการรวม, การประมวลผลจำนวนมาก และการจัดการคุณภาพข้อมูล'
+                }
+            },
+            {
+                id: 'stibo',
+                name: 'Stibo Systems STEP',
+                logoUrl: 'https://placehold.co/30x30/800080/ffffff?text=ST',
+                desc: 'แพลตฟอร์ม MDM แบบ SaaS ที่มีความยืดหยุ่นสูง',
+                tags: ['access', 'mdm', 'km'],
+                capabilities: {
+                    access: 'สร้างนโยบายความปลอดภัยและความน่าเชื่อถือตามบทบาท',
+                    catalog: 'ให้มุมมอง 360 องศาของข้อมูล แต่เน้นที่ MDM เป็นหลัก',
+                    km: 'มี "ศูนย์ความรู้" สำหรับให้ความรู้และบริบทแก่ผู้ใช้',
+                    mdm: 'ความสามารถ MDM ระดับองค์กรที่แข็งแกร่งพร้อมการจัดหาและส่งมอบข้อมูลแบบเรียลไทม์'
+                }
+            }
+        ];
+
+        const productTableBody = document.getElementById('product-table-body');
+        const modal = document.getElementById('product-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+
+        // Function to render products into the table
+        function renderProductsTable() {
+            productTableBody.innerHTML = ''; // Clear existing rows
+            products.forEach(product => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-200 hover:bg-blue-50 cursor-pointer';
+                row.dataset.productId = product.id; // Store product ID for modal
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap font-medium text-blue-700 hover:underline">
+                        <img src="${product.logoUrl}" alt="${product.name} Logo" class="product-logo inline-block">
+                        ${product.name}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-700">${product.tags.includes('access') ? '✔️ รองรับ' : '—'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-700">${product.tags.includes('catalog') ? '✔️ รองรับ' : '—'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-700">${product.tags.includes('km') ? '✔️ รองรับ' : '—'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-700">${product.tags.includes('mdm') ? '✔️ รองรับ' : '—'}</td>
+                `;
+                productTableBody.appendChild(row);
+            });
+        }
+
+        // Function to open the modal with product details
+        function openModal(product) {
+            modalTitle.textContent = product.name;
+            modalBody.innerHTML = `
+                <p class="text-gray-600 mb-6">${product.desc}</p>
+                <div class="space-y-4">
+                    <div>
+                        <h5 class="font-semibold text-lg">การควบคุมการเข้าถึง</h5>
+                        <p class="text-gray-700">${product.capabilities.access}</p>
+                    </div>
+                    <div>
+                        <h5 class="font-semibold text-lg">แค็ตตาล็อกข้อมูล</h5>
+                        <p class="text-gray-700">${product.capabilities.catalog}</p>
+                    </div>
+                    <div>
+                        <h5 class="font-semibold text-lg">การจัดการความรู้ (KM)</h5>
+                        <p class="text-gray-700">${product.capabilities.km}</p>
+                    </div>
+                    <div>
+                        <h5 class="font-semibold text-lg">MDM / การนำข้อมูลมาใช้งาน</h5>
+                        <p class="text-gray-700">${product.capabilities.mdm}</p>
+                    </div>
+                </div>
+            `;
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.querySelector('.modal-content').classList.remove('scale-95');
+        }
+
+        // Function to close the modal
+        function closeModal() {
+            modal.classList.add('opacity-0');
+            modal.querySelector('.modal-content').classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('pointer-events-none');
+            }, 250);
+        }
+
+        // Event listener for table row clicks to open modal
+        productTableBody.addEventListener('click', (e) => {
+            const row = e.target.closest('tr');
+            if (row && row.dataset.productId) {
+                const productId = row.dataset.productId;
+                const product = products.find(p => p.id === productId);
+                if (product) {
+                    openModal(product);
+                }
+            }
+        });
+
+        // Event listeners for modal close button and outside click
+        closeModalBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+
+        // Initial render of the product table
+        renderProductsTable();
+    });
+    </script>
+</body>
+</html>
